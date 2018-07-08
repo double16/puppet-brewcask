@@ -48,7 +48,7 @@ Puppet::Type.type(:package).provide :brewcask, :parent => Puppet::Provider::Pack
     if install_options.any?
       execute ["brew", "install", "Caskroom/cask/#{resource[:name]}", *install_options].flatten, command_opts
     else
-      execute ["brew", "boxen-install", "Caskroom/cask/#{resource[:name]}"], command_opts
+      execute ["brew", "install", "Caskroom/cask/#{resource[:name]}"], command_opts
     end
   end
 
