@@ -1,3 +1,4 @@
+require "tempfile"
 require "puppet/provider/package"
 require "puppet/util/execution"
 
@@ -45,10 +46,18 @@ Puppet::Type.type(:package).provide :brewcask, :parent => Puppet::Provider::Pack
   end
 
   def install
-    if install_options.any?
-      execute ["brew", "install", "Caskroom/cask/#{resource[:name]}", *install_options].flatten, command_opts
-    else
-      execute ["brew", "install", "Caskroom/cask/#{resource[:name]}"], command_opts
+    begin
+      sudo_script = askpass_script
+      opts = command_opts
+      opts[:custom_environment]['SUDO_ASKPASS'] = sudo_script.path
+
+      if install_options.any?
+        execute ["brew", "install", "Caskroom/cask/#{resource[:name]}", *install_options].flatten, opts
+      else
+        execute ["brew", "install", "Caskroom/cask/#{resource[:name]}"], opts
+      end
+    ensure
+      sudo_script.unlink
     end
   end
 
@@ -102,5 +111,31 @@ Puppet::Type.type(:package).provide :brewcask, :parent => Puppet::Provider::Pack
     # Only try to run as another user if Puppet is run as root.
     opts[:uid] = default_user if Process.uid == 0
     opts
+  end
+
+  def askpass_script
+    f = Tempfile.new('askpass', '/tmp')
+    f.write(%{#!/bin/bash
+
+APP_NAME=Terminal
+term_pid=$PPID
+while [ $term_pid -ne 1 ]; do
+	ps="$(ps -o command= -p $term_pid)"
+	if [[ "$ps" =~ Terminal ]]; then
+		APP_NAME=Terminal
+	fi
+	if [[ "$ps" =~ iTerm ]]; then
+		APP_NAME=iTerm.app
+	fi
+	term_pid=$(ps -o ppid= -p $term_pid)
+done
+
+osascript \\
+	-e "Tell application \\"${APP_NAME}\\" to display dialog \\"Password for installing #{resource[:name]}:\\" default answer \\"\\" with hidden answer" \\
+	-e 'text returned of result' 2>/dev/null
+})
+    f.chmod(0755)
+    f.close
+    f
   end
 end
