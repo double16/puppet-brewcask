@@ -46,8 +46,8 @@ Puppet::Type.type(:package).provide :brewcask, :parent => Puppet::Provider::Pack
   end
 
   def install
+    sudo_script = askpass_script
     begin
-      sudo_script = askpass_script
       opts = command_opts
       opts[:custom_environment]['SUDO_ASKPASS'] = sudo_script.path
 
